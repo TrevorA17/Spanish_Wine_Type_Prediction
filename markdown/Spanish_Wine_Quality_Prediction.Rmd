@@ -1,0 +1,452 @@
+---
+title: "Spanish Wine Quality Prediction"
+author: "Trevor Okinda"
+date: "2024"
+output:
+  github_document: 
+    toc: yes
+    toc_depth: 4
+    fig_width: 6
+    fig_height: 4
+    df_print: default
+editor_options:
+  chunk_output_type: console
+---
+
+# Student Details
+
+|                                              |     |
+|----------------------------------------------|-----|
+| **Student ID Number**                        | 134780 |
+| **Student Name**                             | Trevor Okinda |
+| **BBIT 4.2 Group**                           | C |
+| **Project Name**                             | Spanish Wine Quality Prediction |
+
+# Setup Chunk
+
+**Note:** the following KnitR options have been set as the global defaults: <BR> `knitr::opts_chunk$set(echo = TRUE, warning = FALSE, eval = TRUE, collapse = FALSE, tidy = TRUE)`.
+
+More KnitR options are documented here <https://bookdown.org/yihui/rmarkdown-cookbook/chunk-options.html> and here <https://yihui.org/knitr/options/>.
+
+```{r setup, include=FALSE}
+library(formatR)
+knitr::opts_chunk$set(
+  warning = FALSE,
+  collapse = FALSE
+)
+```
+
+### Source: 
+
+The dataset that was used can be downloaded here: *\<https://www.kaggle.com/datasets/fedesoriano/spanish-wine-quality-dataset\>*
+
+### Reference:
+
+*\<fedesoriano. (April 2022). Spanish Wine Quality Dataset. Retrieved [Date Retrieved] from https://www.kaggle.com/datasets/fedesoriano/spanish-wine-quality-dataset\>\
+Refer to the APA 7th edition manual for rules on how to cite datasets: <https://apastyle.apa.org/style-grammar-guidelines/references/examples/data-set-references>*
+
+# Exploratory Data Analysis
+## Load dataset
+```{r Load dataset}
+# Load the necessary package
+library(readr)
+
+# Load dataset and capture parsing issues
+wine_data <- read.csv("wines_SPA.csv", colClasses = c(
+  winery = "character",
+  wine = "character",
+  year = "character",
+  rating = "numeric",
+  num_reviews = "numeric",
+  country = "character",
+  region = "character",
+  type = "factor",
+  body = "factor",
+  acidity = "factor",
+  price = "numeric"
+))
+
+# Check for parsing issues
+problems(wine_data)
+
+# Display the structure of the dataset
+str(wine_data)
+
+# View the first few rows of the dataset
+head(wine_data)
+
+# View the dataset in a separate viewer window
+View(wine_data)
+```
+
+## Measures of Frequency
+```{r MOF}
+# Frequency tables for categorical variables
+winery_freq <- table(wine_data$winery)
+type_freq <- table(wine_data$type)
+
+# Display the frequency tables
+print("Winery Frequency:")
+print(winery_freq)
+
+print("Type Frequency:")
+print(type_freq)
+```
+
+## Measures of Central Tendency
+```{r MOCT}
+# Mean, median, and mode for numeric variables
+mean_rating <- mean(wine_data$rating, na.rm = TRUE)
+median_rating <- median(wine_data$rating, na.rm = TRUE)
+mode_rating <- as.numeric(names(sort(table(wine_data$rating), decreasing = TRUE)[1]))
+
+mean_num_reviews <- mean(wine_data$num_reviews, na.rm = TRUE)
+median_num_reviews <- median(wine_data$num_reviews, na.rm = TRUE)
+mode_num_reviews <- as.numeric(names(sort(table(wine_data$num_reviews), decreasing = TRUE)[1]))
+
+mean_price <- mean(wine_data$price, na.rm = TRUE)
+median_price <- median(wine_data$price, na.rm = TRUE)
+mode_price <- as.numeric(names(sort(table(wine_data$price), decreasing = TRUE)[1]))
+
+# Display the measures of central tendency
+print(paste("Mean Rating:", mean_rating))
+print(paste("Median Rating:", median_rating))
+print(paste("Mode Rating:", mode_rating))
+
+print(paste("Mean Number of Reviews:", mean_num_reviews))
+print(paste("Median Number of Reviews:", median_num_reviews))
+print(paste("Mode Number of Reviews:", mode_num_reviews))
+
+print(paste("Mean Price:", mean_price))
+print(paste("Median Price:", median_price))
+print(paste("Mode Price:", mode_price))
+```
+
+## Measures of Distribution
+```{r MOD}
+# Standard deviation, variance, range, and IQR for numeric variables
+sd_rating <- sd(wine_data$rating, na.rm = TRUE)
+var_rating <- var(wine_data$rating, na.rm = TRUE)
+range_rating <- range(wine_data$rating, na.rm = TRUE)
+iqr_rating <- IQR(wine_data$rating, na.rm = TRUE)
+
+sd_num_reviews <- sd(wine_data$num_reviews, na.rm = TRUE)
+var_num_reviews <- var(wine_data$num_reviews, na.rm = TRUE)
+range_num_reviews <- range(wine_data$num_reviews, na.rm = TRUE)
+iqr_num_reviews <- IQR(wine_data$num_reviews, na.rm = TRUE)
+
+sd_price <- sd(wine_data$price, na.rm = TRUE)
+var_price <- var(wine_data$price, na.rm = TRUE)
+range_price <- range(wine_data$price, na.rm = TRUE)
+iqr_price <- IQR(wine_data$price, na.rm = TRUE)
+
+# Display the measures of distribution
+print(paste("Standard Deviation of Rating:", sd_rating))
+print(paste("Variance of Rating:", var_rating))
+print(paste("Range of Rating:", paste(range_rating, collapse = " - ")))
+print(paste("IQR of Rating:", iqr_rating))
+
+print(paste("Standard Deviation of Number of Reviews:", sd_num_reviews))
+print(paste("Variance of Number of Reviews:", var_num_reviews))
+print(paste("Range of Number of Reviews:", paste(range_num_reviews, collapse = " - ")))
+print(paste("IQR of Number of Reviews:", iqr_num_reviews))
+
+print(paste("Standard Deviation of Price:", sd_price))
+print(paste("Variance of Price:", var_price))
+print(paste("Range of Price:", paste(range_price, collapse = " - ")))
+print(paste("IQR of Price:", iqr_price))
+```
+
+## Measures of Relationship
+```{r MOR}
+# Correlation matrix for numeric variables
+cor_matrix <- cor(wine_data[, c("rating", "num_reviews", "price")], use = "complete.obs")
+
+# Display the correlation matrix
+print("Correlation Matrix:")
+print(cor_matrix)
+```
+
+## ANOVA
+```{r ANOVA}
+# Load necessary packages
+library(dplyr)
+library(car)  # For Levene's Test
+library(ggplot2)  # For visualizing residuals
+
+
+# Convert year to numeric, handling "N.V." and other non-numeric values
+wine_data$year <- ifelse(wine_data$year == "N.V.", NA, as.integer(wine_data$year))
+
+# ANOVA: Effect of wine type on price
+anova_type <- aov(price ~ type, data = wine_data)
+summary(anova_type)
+
+# ANOVA: Effect of region on price
+anova_region <- aov(price ~ region, data = wine_data)
+summary(anova_region)
+
+```
+
+## Plots
+```{r Plots}
+# Visualization of results
+# Boxplot of price by type
+ggplot(wine_data, aes(x = type, y = price)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Price by Wine Type", x = "Wine Type", y = "Price")
+
+# Boxplot of price by region
+ggplot(wine_data, aes(x = region, y = price)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Price by Region", x = "Region", y = "Price")
+
+
+# Load necessary packages
+library(ggplot2)
+library(reshape2)
+
+
+# Convert year to numeric, handling "N.V." and other non-numeric values
+wine_data$year <- ifelse(wine_data$year == "N.V.", NA, as.integer(wine_data$year))
+
+# Univariate Plots
+
+# Histogram for price
+ggplot(wine_data, aes(x = price)) +
+  geom_histogram(binwidth = 50, fill = "blue", color = "black") +
+  labs(title = "Histogram of Wine Prices", x = "Price", y = "Frequency")
+
+# Boxplot for price
+ggplot(wine_data, aes(y = price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Boxplot of Wine Prices", y = "Price")
+
+# Bar plot for type
+ggplot(wine_data, aes(x = type)) +
+  geom_bar(fill = "orange") +
+  labs(title = "Bar Plot of Wine Types", x = "Wine Type", y = "Count")
+
+# Multivariate Plots
+
+# Scatter plot for rating vs. price
+ggplot(wine_data, aes(x = rating, y = price)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  labs(title = "Scatter Plot of Rating vs. Price", x = "Rating", y = "Price")
+
+# Boxplot of price by type
+ggplot(wine_data, aes(x = type, y = price)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Boxplot of Price by Wine Type", x = "Wine Type", y = "Price")
+
+# Boxplot of price by region
+ggplot(wine_data, aes(x = region, y = price)) +
+  geom_boxplot(fill = "lightcoral") +
+  labs(title = "Boxplot of Price by Region", x = "Region", y = "Price") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Correlation matrix heatmap
+
+# Compute correlation matrix
+cor_matrix <- cor(wine_data[, c("rating", "num_reviews", "price")], use = "complete.obs")
+
+# Melt the correlation matrix into long format
+melted_cor_matrix <- melt(cor_matrix)
+
+# Plot heatmap
+ggplot(melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+  labs(title = "Correlation Matrix Heatmap", x = "", y = "") +
+  theme_minimal()
+```
+
+# Preprocessing and Data Transformation
+## Missing Values
+```{r Missing Values}
+# Load necessary packages
+library(VIM)
+library(naniar)
+
+# Summary of missing values
+summary(wine_data)
+
+# Count of missing values in each column
+sapply(wine_data, function(x) sum(is.na(x)))
+
+# Percentage of missing values in each column
+sapply(wine_data, function(x) mean(is.na(x)) * 100)
+
+# Total number of missing values
+sum(is.na(wine_data))
+
+# Rows with missing values
+missing_rows <- wine_data[!complete.cases(wine_data), ]
+head(missing_rows)
+
+# Visualization of missing values
+
+# Using VIM package
+aggr_plot <- aggr(wine_data, col = c('navyblue', 'red'), numbers = TRUE, sortVars = TRUE, labels = names(wine_data), cex.axis = 0.7, gap = 3, ylab = c("Missing data", "Pattern"))
+
+# Using naniar package
+gg_miss_var(wine_data, show_pct = TRUE) +
+  labs(title = "Missing Values by Variable")
+```
+
+## Data Cleaning
+```{r Clean Data}
+# Load necessary packages
+library(dplyr)
+library(tidyr)
+
+# Remove rows with missing values
+wine_data_clean <- wine_data %>%
+  drop_na()
+
+# Display the structure of the cleaned dataset
+str(wine_data_clean)
+
+# View the first few rows of the cleaned dataset
+head(wine_data_clean)
+
+# Total number of missing values
+sum(is.na(wine_data_clean))
+
+# Load necessary libraries
+library(dplyr)
+
+# Drop the 'year' and 'country' columns from the dataset
+wine_data_clean <- wine_data_clean %>% select(-year, -country)
+
+# Verify that the columns have been removed
+str(wine_data_clean)
+```
+
+# Training Model
+## Data Splitting
+```{r Data Splitting}
+# Load necessary packages
+library(caTools)
+
+# Ensure reproducibility
+set.seed(123)
+
+# Create a partition index
+split <- sample.split(wine_data_clean$price, SplitRatio = 0.8)
+
+# Split the data into training and testing sets
+train_data <- subset(wine_data_clean, split == TRUE)
+test_data <- subset(wine_data_clean, split == FALSE)
+
+# Display the structure of the training and testing sets
+dim(test_data)
+dim(train_data)
+```
+
+## Bootstrapping
+```{r Bootstrapping}
+# Load necessary packages
+library(boot)
+
+# Ensure reproducibility
+set.seed(123)
+
+# Function to calculate the statistic of interest
+bootstrap_stat <- function(data, indices) {
+  sample_data <- data[indices, ]  # Resample with replacement
+  return(mean(sample_data$price)) # Calculate the mean of the price variable
+}
+
+# Perform bootstrapping
+bootstrap_results <- boot(data = wine_data_clean, statistic = bootstrap_stat, R = 1000)
+
+# Summary of bootstrap results
+print(bootstrap_results)
+
+# Plot the bootstrap distribution
+plot(bootstrap_results)
+```
+
+## Training Different Models
+```{r Model training}
+# Ensure 'type' is a factor
+wine_data_clean$type <- as.factor(wine_data_clean$type)
+
+# Load necessary packages
+library(caret)
+
+# Split the data into training and testing sets
+set.seed(123)  # For reproducibility
+train_index <- createDataPartition(wine_data_clean$type, p = 0.8, list = FALSE, times = 1)
+train_data <- wine_data_clean[train_index, ]
+test_data <- wine_data_clean[-train_index, ]
+
+# Remove factor variables with only one level
+single_level_factors <- sapply(train_data, function(x) is.factor(x) && length(unique(x)) == 1)
+train_data <- train_data[, !single_level_factors]
+
+# Ensure the same columns are removed from test_data
+test_data <- test_data[, colnames(train_data)]
+
+# Define the training control
+train_control <- trainControl(method = "cv", number = 10)
+
+
+# Decision Tree
+dt_model <- train(type ~ ., data = train_data, method = "rpart", trControl = train_control)
+
+# KNN Classification
+knn_model <- train(type ~ ., data = train_data, method = "knn", trControl = train_control, tuneLength = 10)
+
+# Display model results
+print(dt_model)
+print(knn_model)
+```
+
+## Performance Comparison
+```{r Performance Comparison}
+# Compare model performances using resampling
+results <- resamples(list(
+  Decision_Tree = dt_model,
+  KNN = knn_model
+))
+
+# Summary of the results
+summary(results)
+
+# Boxplots of the results
+bwplot(results)
+
+# Dot plots of the results
+dotplot(results)
+```
+
+## Saving Model
+```{r Saving Model}
+# Save the decision tree model to a file
+saveRDS(dt_model, file = "./models/dt_model.rds")
+
+# Load the saved decision tree model
+loaded_dt_model <- readRDS("./models/dt_model.rds")
+
+# Prepare new data for prediction (example data, adjust according to your dataset)
+new_data <- data.frame(
+  winery = "Teso La Monja",
+  wine = "Tinto",
+  rating = 4.8,
+  num_reviews = 100,
+  region = "Toro",
+  body = factor(5, levels = levels(train_data$body)),
+  acidity = factor(3, levels = levels(train_data$acidity)),
+  price = 50.0
+)
+
+# Use the loaded model to make predictions for new data
+predictions_loaded_model <- predict(loaded_dt_model, newdata = new_data)
+
+# Print predictions
+print(predictions_loaded_model)
+
+```
+
